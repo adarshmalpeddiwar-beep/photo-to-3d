@@ -108,6 +108,20 @@
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
   .drop:focus-within { outline: 3px solid rgba(0, 113, 227, 0.45); outline-offset: 2px; }
   .drop.has-file { border-style: solid; border-color: var(--accent); color: var(--ink); }
+  .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .slot {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; min-height: 124px; padding: 10px; text-align: center; overflow: hidden;
+    border-radius: 14px; border: 1.5px dashed #c7c7cc; background: #fbfbfd; cursor: pointer;
+    font-size: 13px; color: var(--ink-2);
+  }
+  .slot:hover { border-color: var(--accent); }
+  .slot:focus-within { outline: 3px solid rgba(0, 113, 227, 0.45); outline-offset: 2px; }
+  .slot strong { color: var(--ink); font-weight: 500; font-size: 14px; }
+  .slot input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .slot.has-file { border-style: solid; border-color: var(--accent); }
+  .slot.has-file strong, .slot.has-file span { position: relative; z-index: 1; background: rgba(255,255,255,0.85); padding: 1px 6px; border-radius: 6px; }
 
   .btn {
     font: inherit; font-size: 17px; font-weight: 500;
@@ -203,7 +217,7 @@
 
 <header class="nav">
   <strong>Photo to 3D</strong>
-  <span>Plain background · Even light · One photo</span>
+  <span>Plain background · Even light · Four photos</span>
 </header>
 
 <div class="wrap">
@@ -213,7 +227,7 @@
   </section>
 
   <ol class="steps">
-    <li><b>Photograph</b><span>One photo of the object on a plain background, in even light.</span></li>
+    <li><b>Photograph</b><span>Four photos of the object, one per side, on a plain background, in even light.</span></li>
     <li><b>Measure</b><span>Enter the widest part of the object in millimetres.</span></li>
     <li><b>Print</b><span>Download a closed STL or 3MF, with print checks.</span></li>
   </ol>
@@ -221,15 +235,17 @@
   <div class="main">
     <section class="card" aria-labelledby="new-h">
       <h2 id="new-h">New model</h2>
-      <p class="lead">Choose a single photo. Larger files and HEIC are not supported.</p>
+      <p class="lead">Four photographs of the same object, one for each side. JPEG, PNG or WebP, up to 20 MB each.</p>
 
       <div class="field">
-        <span class="label">Photo</span>
-        <label class="drop" id="drop">
-          <input id="file" type="file" accept="image/jpeg,image/png,image/webp">
-          <strong id="drop-title">Choose a photo</strong>
-          <span id="drop-sub">JPEG, PNG or WebP, up to 20 MB</span>
-        </label>
+        <span class="label">Photographs</span>
+        <div class="slots" id="slots">
+          <label class="slot" data-index="0"><input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Front photograph"><strong>Front</strong><span class="slot-sub">Choose photo</span></label>
+          <label class="slot" data-index="1"><input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Right side photograph"><strong>Right side</strong><span class="slot-sub">Choose photo</span></label>
+          <label class="slot" data-index="2"><input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Back photograph"><strong>Back</strong><span class="slot-sub">Choose photo</span></label>
+          <label class="slot" data-index="3"><input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Left side photograph"><strong>Left side</strong><span class="slot-sub">Choose photo</span></label>
+        </div>
+        <span class="hint">Use the same distance, light and plain background for all four. The front photograph sets the outline in this build. All four are checked and kept with the model.</span>
       </div>
 
       <div class="field">
@@ -692,7 +708,7 @@ function zipStore(files) {
 
 const $ = (sel) => document.querySelector(sel);
 const el = {
-  file: $("#file"), drop: $("#drop"), dropTitle: $("#drop-title"), dropSub: $("#drop-sub"),
+  slots: [...document.querySelectorAll(".slot")],
   name: $("#name"), width: $("#width"), go: $("#go"), error: $("#error"),
   empty: $("#empty"), progress: $("#progress"), result: $("#result"),
   resultName: $("#result-name"), resultSize: $("#result-size"),
@@ -797,17 +813,33 @@ async function saveFile(filename, bytes) {
   }
 }
 
-el.file.addEventListener("change", () => {
-  const f = el.file.files[0];
-  el.drop.classList.toggle("has-file", Boolean(f));
-  el.dropTitle.textContent = f ? f.name : "Choose a photo";
-  el.dropSub.textContent = f ? `${Math.round(f.size / 1024)} KB` : "JPEG, PNG or WebP, up to 20 MB";
-});
+const photoFiles = [null, null, null, null];
+const slotUrls = [];
+for (const slot of el.slots) {
+  const index = Number(slot.dataset.index);
+  slot.querySelector("input").addEventListener("change", (event) => {
+    const f = event.target.files[0] || null;
+    photoFiles[index] = f;
+    slot.classList.toggle("has-file", Boolean(f));
+    slot.querySelector(".slot-sub").textContent = f ? `${Math.round(f.size / 1024)} KB` : "Choose photo";
+    slot.querySelectorAll("img").forEach((img) => img.remove());
+    if (f) {
+      const url = URL.createObjectURL(f);
+      slotUrls.push(url);
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = url;
+      slot.prepend(img);
+    }
+  });
+}
 
 el.go.addEventListener("click", async () => {
   clearError();
-  const file = el.file.files[0];
-  if (!file) return showError("Choose a photo first.");
+  const names = ["Front", "Right side", "Back", "Left side"];
+  const missing = names.filter((_, i) => !photoFiles[i]);
+  if (missing.length) return showError(`Add all four photographs. Missing: ${missing.join(", ")}.`);
+  const file = photoFiles[0];
   const refText = el.width.value.trim();
   const reference = refText ? Number(refText) : null;
   if (reference !== null && !(reference >= 1 && reference <= 2000)) {
@@ -824,6 +856,7 @@ el.go.addEventListener("click", async () => {
   let stage = 0;
   try {
     setStage(stage); await frame();
+    for (const f of photoFiles) await decodeFile(f);
     const bitmap = await decodeFile(file);
     const small = canvasFrom(bitmap, CONFIG.analysisMax);
     const pixels = small.getContext("2d").getImageData(0, 0, small.width, small.height).data;
