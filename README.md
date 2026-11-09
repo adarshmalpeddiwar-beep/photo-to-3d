@@ -1,9 +1,11 @@
 # Photo to 3D (Phase 1 MVP)
 
-> **Open the console:** https://claude.ai/artifact/X7qo1uz5vcx5juU7rEJZmb
-> This is the browser version. It runs the whole pipeline in your browser, with no server.
-> The link needs you to be signed in to claude.ai with the account that owns it.
+> **Open the console:** https://adarshmalpeddiwar-beep.github.io/photo-to-3d/
+> This is the browser version. It runs the whole pipeline in your browser, with no server and no sign-in.
 > The Python server below is for running the app yourself.
+> (If that link shows a 404, turn on GitHub Pages: Settings → Pages → Deploy from a branch → `main` / `/docs` → Save.)
+>
+> Claude artifact copy (sign-in required): https://claude.ai/artifact/X7qo1uz5vcx5juU7rEJZmb
 
 Upload 1 to 5 photos of an object and get a print-ready STL and 3MF, with a silhouette
 preview, a 3D viewer and print checks.

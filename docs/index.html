@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo to 3D</title>
+<style>
+  /* Plan: one light, quiet canvas (#f5f5f7) with white cards, a single blue accent,
+     system type, pill buttons and generous spacing. Single theme by choice. */
+  :root {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --ink: #1d1d1f;
+    --ink-2: #6e6e73;
+    --accent: #0071e3;
+    --line: #d2d2d7;
+    --ok: #1f7a3a;
+    --warn: #8a5300;
+    --fail: #c9302c;
+    --radius: 22px;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 30px rgba(0, 0, 0, 0.06);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.47;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 3px solid rgba(0, 113, 227, 0.45); outline-offset: 2px; }
+
+  .nav {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 24px; height: 52px;
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    font-size: 13px;
+  }
+  .nav strong { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+  .nav span { color: var(--ink-2); }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+  .hero { text-align: center; padding: 72px 0 40px; }
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(44px, 7vw, 80px);
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .hero p {
+    margin: 18px auto 0;
+    max-width: 36ch;
+    font-size: clamp(19px, 2.4vw, 24px);
+    color: var(--ink-2);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .steps {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    margin: 28px 0 0; padding: 0; list-style: none;
+  }
+  .steps li {
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 22px 24px;
+  }
+  .steps b { display: block; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .steps span { color: var(--ink-2); font-size: 15px; }
+
+  .main {
+    display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.45fr);
+    gap: 16px; margin: 16px 0 0; align-items: start;
+  }
+  .card {
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+  .card .lead { margin: 0 0 22px; color: var(--ink-2); font-size: 15px; }
+
+  .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+  .field label, .field .label { font-size: 14px; font-weight: 500; }
+  .field .hint { font-size: 13px; color: var(--ink-2); }
+  input[type="text"], input[type="number"] {
+    font: inherit; font-size: 17px;
+    padding: 11px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: #fbfbfd; color: var(--ink);
+  }
+  input[type="text"]:focus, input[type="number"]:focus { border-color: var(--accent); background: #fff; }
+
+  .drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    text-align: center; padding: 28px 16px; border-radius: 16px;
+    border: 1.5px dashed #c7c7cc; background: #fbfbfd; cursor: pointer;
+    font-size: 15px; color: var(--ink-2);
+  }
+  .drop:hover { border-color: var(--accent); }
+  .drop strong { color: var(--ink); font-weight: 500; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop:focus-within { outline: 3px solid rgba(0, 113, 227, 0.45); outline-offset: 2px; }
+  .drop.has-file { border-style: solid; border-color: var(--accent); color: var(--ink); }
+
+  .btn {
+    font: inherit; font-size: 17px; font-weight: 500;
+    padding: 12px 24px; border-radius: 980px; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff; transition: background 0.2s ease, opacity 0.2s ease;
+  }
+  .btn:hover { background: #0077ed; }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn.secondary { background: #fff; color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+  .btn.secondary:hover { background: #f5f5f7; }
+  .btn.block { width: 100%; }
+  .btn[hidden] { display: none; }
+
+  .notice {
+    margin: 16px 0 0; padding: 12px 14px; border-radius: 12px;
+    background: #fff7e8; color: var(--warn); font-size: 14px; line-height: 1.4;
+  }
+  .error {
+    margin: 14px 0 0; padding: 12px 14px; border-radius: 12px;
+    background: #fdecec; color: var(--fail); font-size: 14px;
+  }
+  .error[hidden], .notice[hidden], #result[hidden], #empty[hidden] { display: none; }
+
+  .stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .stages li { display: flex; align-items: center; gap: 12px; color: var(--ink-2); font-size: 15px; }
+  .stages li::before {
+    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    background: #d2d2d7; flex: none;
+  }
+  .stages li.done { color: var(--ink); }
+  .stages li.done::before { background: var(--ok); }
+  .stages li.active { color: var(--ink); }
+  .stages li.active::before { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  .stages li.failed::before { background: var(--fail); }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .stages li.active::before { animation: none; } }
+
+  .empty { text-align: center; padding: 56px 16px; color: var(--ink-2); }
+  .empty strong { display: block; color: var(--ink); font-size: 19px; font-weight: 600; margin-bottom: 6px; }
+
+  .result-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .result-head h2 { margin: 0; }
+  .meta { color: var(--ink-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+  .views { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; margin-top: 18px; }
+  .tile {
+    border-radius: 16px; background: #f5f5f7; overflow: hidden; min-height: 220px;
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .tile img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .tile .tag {
+    position: absolute; left: 12px; top: 10px; font-size: 12px; color: var(--ink-2);
+    background: rgba(255,255,255,0.85); padding: 2px 8px; border-radius: 980px;
+  }
+  #viewer { position: absolute; inset: 0; }
+  #viewer canvas { display: block; width: 100%; height: 100%; }
+  #viewer-hint { color: var(--ink-2); font-size: 14px; padding: 16px; text-align: center; }
+
+  .downloads { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+  .checks { list-style: none; margin: 20px 0 0; padding: 0; border-top: 1px solid #e8e8ed; }
+  .checks li {
+    display: grid; grid-template-columns: 150px auto 1fr; gap: 12px; align-items: baseline;
+    padding: 12px 0; border-bottom: 1px solid #e8e8ed; font-size: 15px;
+  }
+  .checks .name { text-transform: capitalize; font-weight: 500; }
+  .checks .detail { color: var(--ink-2); font-size: 14px; }
+  .pill {
+    font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 980px;
+    background: #f0f0f3; color: var(--ink-2); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.02em;
+  }
+  .pill.pass { background: #e3f4e8; color: var(--ok); }
+  .pill.warn { background: #fdf0d9; color: var(--warn); }
+  .pill.fail { background: #fbe4e3; color: var(--fail); }
+
+  .scale-note { color: var(--ink-2); font-size: 14px; margin: 14px 0 0; }
+
+  .footer {
+    max-width: 1040px; margin: 40px auto 48px; padding: 0 20px;
+    color: var(--ink-2); font-size: 13px; line-height: 1.5;
+  }
+
+  @media (max-width: 860px) {
+    .main, .views { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr; }
+    .checks li { grid-template-columns: 1fr auto; }
+    .checks .detail { grid-column: 1 / -1; }
+    .hero { padding-top: 48px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <strong>Photo to 3D</strong>
+  <span>Plain background · Even light · One photo</span>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <h1>Turn a photo into a model you can print.</h1>
+    <p>Upload a photo, enter the real width, and get an STL or 3MF checked against a 220 × 220 × 250&nbsp;mm build plate.</p>
+  </section>
+
+  <ol class="steps">
+    <li><b>Photograph</b><span>One photo of the object on a plain background, in even light.</span></li>
+    <li><b>Measure</b><span>Enter the widest part of the object in millimetres.</span></li>
+    <li><b>Print</b><span>Download a closed STL or 3MF, with print checks.</span></li>
+  </ol>
+
+  <div class="main">
+    <section class="card" aria-labelledby="new-h">
+      <h2 id="new-h">New model</h2>
+      <p class="lead">Choose a single photo. Larger files and HEIC are not supported.</p>
+
+      <div class="field">
+        <span class="label">Photo</span>
+        <label class="drop" id="drop">
+          <input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+          <strong id="drop-title">Choose a photo</strong>
+          <span id="drop-sub">JPEG, PNG or WebP, up to 20 MB</span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="name">Name <span class="hint">(optional)</span></label>
+        <input id="name" type="text" maxlength="80" placeholder="Bracket v2">
+      </div>
+
+      <div class="field">
+        <label for="width">Real width in mm <span class="hint">(optional)</span></label>
+        <input id="width" type="number" min="1" max="2000" step="0.1" placeholder="Leave empty for an unscaled model">
+        <span class="hint">Measure the widest part of the object, along the same direction as the photo.</span>
+      </div>
+
+      <button id="go" class="btn block" type="button">Create model</button>
+      <p id="error" class="error" role="alert" hidden></p>
+      <p class="notice">This version builds a placeholder shape from the photo outline. Depth is estimated, so the shape is not a true model of the object.</p>
+    </section>
+
+    <section class="card" aria-live="polite" aria-labelledby="result-h">
+      <div id="empty" class="empty">
+        <strong id="result-h">Your model appears here</strong>
+        Create a model to see the photo outline, a 3D preview and print checks.
+      </div>
+
+      <div id="progress" hidden>
+        <h2 style="margin-bottom:16px">Working…</h2>
+        <ol class="stages" id="stages">
+          <li>Find object</li>
+          <li>Build shape</li>
+          <li>Scale</li>
+          <li>Clean mesh</li>
+          <li>Print checks</li>
+          <li>Prepare files</li>
+        </ol>
+      </div>
+
+      <div id="result" hidden>
+        <div class="result-head">
+          <h2 id="result-name">Model</h2>
+          <span class="meta" id="result-size"></span>
+        </div>
+
+        <div class="views">
+          <div class="tile">
+            <img id="silhouette" alt="Object outline found in the photo">
+            <span class="tag">Outline</span>
+          </div>
+          <div class="tile" id="viewer-box">
+            <div id="viewer"><div id="viewer-hint">3D preview loads here.</div></div>
+            <span class="tag">3D</span>
+          </div>
+        </div>
+
+        <p class="scale-note" id="scale-note"></p>
+
+        <div class="downloads">
+          <button id="dl-stl" class="btn" type="button" hidden>Download STL</button>
+          <button id="dl-3mf" class="btn secondary" type="button" hidden>Download 3MF</button>
+        </div>
+        <p id="dl-note" class="notice" hidden></p>
+
+        <ul class="checks" id="checks"></ul>
+      </div>
+    </section>
+  </div>
+</div>
+
+<p class="footer">
+  Dimensions are approximate unless you enter a real width. Check key dimensions before printing or machining.
+  Files are processed in your browser and are not uploaded anywhere.
+</p>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+/* PURE-BEGIN */
+// Geometry and image logic. No DOM access in this block.
+const CONFIG = {
+  analysisMax: 256,
+  voxelMax: 48,
+  defaultLongestMm: 100,
+  build: [220, 220, 250],
+  overhangDeg: 45,
+  faceBudget: 300000,
+  maxBytes: 20 * 1024 * 1024,
+  maxPixels: 40e6,
+};
+
+function median(values) {
+  values.sort((a, b) => a - b);
+  return values[values.length >> 1];
+}
+
+function otsu(values) {
+  let min = Infinity, max = -Infinity;
+  for (const v of values) { if (v < min) min = v; if (v > max) max = v; }
+  if (max === min) return min;
+  const bins = 256;
+  const hist = new Float64Array(bins);
+  const scale = (bins - 1) / (max - min);
+  for (const v of values) hist[Math.floor((v - min) * scale)]++;
+  const total = values.length;
+  let sumAll = 0;
+  for (let i = 0; i < bins; i++) sumAll += i * hist[i];
+  let wB = 0, sumB = 0, best = -1, bestBin = 0;
+  for (let i = 0; i < bins; i++) {
+    wB += hist[i];
+    if (wB === 0) continue;
+    const wF = total - wB;
+    if (wF === 0) break;
+    sumB += i * hist[i];
+    const mB = sumB / wB;
+    const mF = (sumAll - sumB) / wF;
+    const between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > best) { best = between; bestBin = i; }
+  }
+  return min + (bestBin + 0.5) / scale;
+}
+
+function largestComponent(mask, w, h) {
+  const label = new Int32Array(w * h);
+  const stack = new Int32Array(w * h);
+  let bestId = 0, bestSize = 0, next = 1;
+  for (let p = 0; p < w * h; p++) {
+    if (!mask[p] || label[p]) continue;
+    const id = next++;
+    let top = 0, size = 0;
+    stack[top++] = p;
+    label[p] = id;
+    while (top > 0) {
+      const q = stack[--top];
+      size++;
+      const x = q % w, y = (q - x) / w;
+      const neighbours = [];
+      if (x > 0) neighbours.push(q - 1);
+      if (x < w - 1) neighbours.push(q + 1);
+      if (y > 0) neighbours.push(q - w);
+      if (y < h - 1) neighbours.push(q + w);
+      for (const n of neighbours) {
+        if (mask[n] && !label[n]) { label[n] = id; stack[top++] = n; }
+      }
+    }
+    if (size > bestSize) { bestSize = size; bestId = id; }
+  }
+  const out = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) out[p] = label[p] === bestId ? 1 : 0;
+  return out;
+}
+
+// rgba: Uint8ClampedArray from getImageData. Returns a 0/1 mask (row 0 = top).
+function segmentPixels(rgba, w, h) {
+  const rs = [], gs = [], bs = [];
+  const sample = (x, y) => { const i = (y * w + x) * 4; rs.push(rgba[i]); gs.push(rgba[i + 1]); bs.push(rgba[i + 2]); };
+  for (let x = 0; x < w; x++) { sample(x, 0); sample(x, h - 1); }
+  for (let y = 0; y < h; y++) { sample(0, y); sample(w - 1, y); }
+  const bg = [median(rs), median(gs), median(bs)];
+
+  const dist = new Float32Array(w * h);
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    const dr = rgba[i] - bg[0], dg = rgba[i + 1] - bg[1], db = rgba[i + 2] - bg[2];
+    dist[p] = Math.sqrt(dr * dr + dg * dg + db * db);
+  }
+  const threshold = otsu(dist);
+  const raw = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) raw[p] = dist[p] > threshold ? 1 : 0;
+  const mask = largestComponent(raw, w, h);
+
+  let count = 0;
+  for (let p = 0; p < mask.length; p++) count += mask[p];
+  const coverage = count / mask.length;
+  if (coverage < 0.02) throw new Error("Could not find an object. Try a plainer background and even lighting.");
+  if (coverage > 0.9) throw new Error("The object fills almost the whole photo, or the background is not uniform.");
+  return { mask, w, h, threshold };
+}
+
+// Shrink a mask to about maxSide cells. Returns occupancy with Y pointing up (occ[y * W + x]).
+function resampleToVoxels(mask, w, h, maxSide) {
+  const scale = maxSide / Math.max(w, h);
+  const W = Math.max(1, Math.round(w * scale));
+  const H = Math.max(1, Math.round(h * scale));
+  const occ = new Uint8Array(W * H);
+  for (let ty = 0; ty < H; ty++) {
+    const y0 = Math.floor((ty * h) / H);
+    const y1 = Math.max(y0 + 1, Math.floor(((ty + 1) * h) / H));
+    for (let tx = 0; tx < W; tx++) {
+      const x0 = Math.floor((tx * w) / W);
+      const x1 = Math.max(x0 + 1, Math.floor(((tx + 1) * w) / W));
+      let sum = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) sum += mask[y * w + x];
+      const total = (y1 - y0) * (x1 - x0);
+      occ[(H - 1 - ty) * W + tx] = sum * 2 >= total ? 1 : 0;
+    }
+  }
+  return { occ, W, H };
+}
+
+// Crop the occupancy grid to the object's own bounding box, so the guessed depth follows the object.
+function cropToSolid(occ, W, H) {
+  let minX = W, maxX = -1, minY = H, maxY = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (occ[y * W + x]) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+  }
+  if (maxX < 0) throw new Error("The reconstruction produced no geometry.");
+  const cw = maxX - minX + 1, ch = maxY - minY + 1;
+  const out = new Uint8Array(cw * ch);
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) out[y * cw + x] = occ[(y + minY) * W + (x + minX)];
+  return { occ: out, W: cw, H: ch };
+}
+
+// Extrude the occupancy grid along Z and mesh its exposed faces. Vertices are shared by position.
+function buildVoxelMesh(occ, W, H, D) {
+  const solid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < D && occ[y * W + x] === 1;
+  const coords = [];
+  const faces = [];
+  const index = new Map();
+  const vid = (x, y, z) => {
+    const key = (x * (H + 1) + y) * (D + 1) + z;
+    let i = index.get(key);
+    if (i === undefined) { i = coords.length / 3; index.set(key, i); coords.push(x, y, z); }
+    return i;
+  };
+  const dirs = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  for (let z = 0; z < D; z++) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!solid(x, y, z)) continue;
+    for (const [dx, dy, dz] of dirs) {
+      if (solid(x + dx, y + dy, z + dz)) continue;
+      const axis = dx !== 0 ? 0 : dy !== 0 ? 1 : 2;
+      const s = dx + dy + dz;
+      const a1 = (axis + 1) % 3, a2 = (axis + 2) % 3;
+      const base = [x, y, z];
+      const corner = (du, dv) => {
+        const p = [0, 0, 0];
+        p[axis] = base[axis] + (s > 0 ? 1 : 0);
+        p[a1] = base[a1] + du;
+        p[a2] = base[a2] + dv;
+        return vid(p[0], p[1], p[2]);
+      };
+      const c = [corner(0, 0), corner(1, 0), corner(1, 1), corner(0, 1)];
+      const q = s > 0 ? c : [c[0], c[3], c[2], c[1]];
+      faces.push(q[0], q[1], q[2], q[0], q[2], q[3]);
+    }
+  }
+  return { vertices: new Float32Array(coords), faces: new Uint32Array(faces) };
+}
+
+function signedVolume(v, f) {
+  let total = 0;
+  for (let t = 0; t < f.length; t += 3) {
+    const a = f[t] * 3, b = f[t + 1] * 3, c = f[t + 2] * 3;
+    const ax = v[a], ay = v[a + 1], az = v[a + 2];
+    const bx = v[b], by = v[b + 1], bz = v[b + 2];
+    const cx = v[c], cy = v[c + 1], cz = v[c + 2];
+    total += ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx);
+  }
+  return total / 6;
+}
+
+function edgeCounts(f) {
+  const counts = new Map();
+  for (let t = 0; t < f.length; t += 3) {
+    for (const [p, q] of [[f[t], f[t + 1]], [f[t + 1], f[t + 2]], [f[t + 2], f[t]]]) {
+      const key = p < q ? `${p},${q}` : `${q},${p}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  let boundary = 0, nonManifold = 0;
+  for (const n of counts.values()) { if (n === 1) boundary++; else if (n > 2) nonManifold++; }
+  return { boundary, nonManifold, edges: counts.size };
+}
+
+// Share of surface area steeper than maxDeg from vertical (downward-facing faces only).
+function overhangFraction(v, f, maxDeg) {
+  let total = 0, flagged = 0;
+  const limit = -Math.sin((maxDeg * Math.PI) / 180);
+  for (let t = 0; t < f.length; t += 3) {
+    const a = f[t] * 3, b = f[t + 1] * 3, c = f[t + 2] * 3;
+    const ux = v[b] - v[a], uy = v[b + 1] - v[a + 1], uz = v[b + 2] - v[a + 2];
+    const wx = v[c] - v[a], wy = v[c + 1] - v[a + 1], wz = v[c + 2] - v[a + 2];
+    const cx = uy * wz - uz * wy, cy = uz * wx - ux * wz, cz = ux * wy - uy * wx;
+    const len = Math.sqrt(cx * cx + cy * cy + cz * cz);
+    total += len / 2;
+    if (len > 0 && cz / len < limit) flagged += len / 2;
+  }
+  return total > 0 ? flagged / total : 0;
+}
+
+function extentsOf(v) {
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < v.length; i += 3) {
+    for (let k = 0; k < 3; k++) { if (v[i + k] < min[k]) min[k] = v[i + k]; if (v[i + k] > max[k]) max[k] = v[i + k]; }
+  }
+  return { min, max, size: [max[0] - min[0], max[1] - min[1], max[2] - min[2]] };
+}
+
+// Centre on X and Y, rest on Z = 0. Mutates v.
+function placeOnPlate(v) {
+  const { min, max } = extentsOf(v);
+  for (let i = 0; i < v.length; i += 3) {
+    v[i] -= (min[0] + max[0]) / 2;
+    v[i + 1] -= (min[1] + max[1]) / 2;
+    v[i + 2] -= min[2];
+  }
+}
+
+function printChecks(v, f) {
+  const checks = [];
+  const e = edgeCounts(f);
+  checks.push({ name: "watertight", status: e.boundary === 0 ? "pass" : "fail",
+    detail: e.boundary === 0 ? "Closed surface." : `${e.boundary} open edges. The slicer may not print this cleanly.` });
+  checks.push({ name: "manifold", status: e.nonManifold === 0 ? "pass" : "fail",
+    detail: e.nonManifold === 0 ? "Each edge is shared by exactly two faces." : `${e.nonManifold} edges are shared by more than two faces.` });
+
+  const { size } = extentsOf(v);
+  const limits = CONFIG.build;
+  const sorted = (a) => [...a].sort((x, y) => x - y);
+  const placed = size.every((d, i) => d <= limits[i]);
+  const rotated = sorted(size).every((d, i) => d <= sorted(limits)[i]);
+  if (placed) checks.push({ name: "build volume", status: "pass", detail: "Fits the build volume as placed." });
+  else if (rotated) checks.push({ name: "build volume", status: "warn", detail: "Fits only if rotated on the build plate." });
+  else checks.push({ name: "build volume", status: "fail", detail: "Larger than the build volume in every orientation." });
+
+  const overhang = overhangFraction(v, f, CONFIG.overhangDeg);
+  checks.push({ name: "overhangs", status: overhang > 0.02 ? "warn" : "pass",
+    detail: `${(overhang * 100).toFixed(1)}% of surface area overhangs more than ${CONFIG.overhangDeg}° from vertical. Supports may be needed.` });
+
+  const tris = f.length / 3;
+  checks.push({ name: "face count", status: tris > CONFIG.faceBudget ? "warn" : "pass", detail: `${tris} triangles.` });
+  checks.push({ name: "wall thickness", status: "not_checked", detail: "Not included in this version." });
+
+  const statuses = checks.map((c) => c.status);
+  const overall = statuses.includes("fail") ? "fail" : statuses.includes("warn") ? "warn" : "pass";
+  return { overall, checks, size, volume: Math.abs(signedVolume(v, f)), triangles: tris };
+}
+
+function stlBytes(v, f) {
+  const n = f.length / 3;
+  const buffer = new ArrayBuffer(84 + 50 * n);
+  const dv = new DataView(buffer);
+  const header = new TextEncoder().encode("photo3d binary STL, millimetres");
+  for (let i = 0; i < Math.min(80, header.length); i++) dv.setUint8(i, header[i]);
+  dv.setUint32(80, n, true);
+  let o = 84;
+  for (let t = 0; t < n; t++) {
+    const a = f[t * 3] * 3, b = f[t * 3 + 1] * 3, c = f[t * 3 + 2] * 3;
+    const ux = v[b] - v[a], uy = v[b + 1] - v[a + 1], uz = v[b + 2] - v[a + 2];
+    const wx = v[c] - v[a], wy = v[c + 1] - v[a + 1], wz = v[c + 2] - v[a + 2];
+    let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+    const values = [nx, ny, nz, v[a], v[a + 1], v[a + 2], v[b], v[b + 1], v[b + 2], v[c], v[c + 1], v[c + 2]];
+    for (const val of values) { dv.setFloat32(o, val, true); o += 4; }
+    dv.setUint16(o, 0, true);
+    o += 2;
+  }
+  return new Uint8Array(buffer);
+}
+
+function threemfBytes(v, f) {
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">',
+    "<resources>", '<object id="1" type="model">', "<mesh>", "<vertices>",
+  ];
+  for (let i = 0; i < v.length; i += 3) {
+    lines.push(`<vertex x="${v[i].toFixed(6)}" y="${v[i + 1].toFixed(6)}" z="${v[i + 2].toFixed(6)}"/>`);
+  }
+  lines.push("</vertices>", "<triangles>");
+  for (let t = 0; t < f.length; t += 3) lines.push(`<triangle v1="${f[t]}" v2="${f[t + 1]}" v3="${f[t + 2]}"/>`);
+  lines.push("</triangles>", "</mesh>", "</object>", "</resources>", '<build><item objectid="1"/></build>', "</model>");
+  const xml = new TextEncoder().encode(lines.join("\n"));
+  return zipStore([
+    { name: "[Content_Types].xml", bytes: new TextEncoder().encode('<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>') },
+    { name: "_rels/.rels", bytes: new TextEncoder().encode('<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>') },
+    { name: "3D/3dmodel.model", bytes: xml },
+  ]);
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// Minimal ZIP writer, stored (no compression), as the 3MF container.
+function zipStore(files) {
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  for (const { name, bytes } of files) {
+    const nameBytes = enc.encode(name);
+    const crc = crc32(bytes);
+    const size = bytes.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true);
+    lh.setUint16(4, 20, true);
+    lh.setUint16(6, 0x0800, true);
+    lh.setUint16(8, 0, true);
+    lh.setUint16(10, 0, true);
+    lh.setUint16(12, 0x21, true);
+    lh.setUint32(14, crc, true);
+    lh.setUint32(18, size, true);
+    lh.setUint32(22, size, true);
+    lh.setUint16(26, nameBytes.length, true);
+    lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), nameBytes, bytes);
+
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true);
+    ch.setUint16(4, 20, true);
+    ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true);
+    ch.setUint16(12, 0, true);
+    ch.setUint16(14, 0x21, true);
+    ch.setUint32(16, crc, true);
+    ch.setUint32(20, size, true);
+    ch.setUint32(24, size, true);
+    ch.setUint16(28, nameBytes.length, true);
+    ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), nameBytes);
+    offset += 30 + nameBytes.length + size;
+  }
+  let cdSize = 0;
+  for (const c of central) cdSize += c.length;
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true);
+  end.setUint32(16, offset, true);
+  const all = [...parts, ...central, new Uint8Array(end.buffer)];
+  const total = all.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of all) { out.set(p, o); o += p.length; }
+  return out;
+}
+/* PURE-END */
+
+// ----- page wiring (DOM) ----------------------------------------------------
+
+const $ = (sel) => document.querySelector(sel);
+const el = {
+  file: $("#file"), drop: $("#drop"), dropTitle: $("#drop-title"), dropSub: $("#drop-sub"),
+  name: $("#name"), width: $("#width"), go: $("#go"), error: $("#error"),
+  empty: $("#empty"), progress: $("#progress"), result: $("#result"),
+  resultName: $("#result-name"), resultSize: $("#result-size"),
+  silhouette: $("#silhouette"), scaleNote: $("#scale-note"),
+  stages: [...document.querySelectorAll("#stages li")],
+  checks: $("#checks"), dlStl: $("#dl-stl"), dl3mf: $("#dl-3mf"), dlNote: $("#dl-note"),
+};
+
+let downloads = null;
+let outputs = null;
+window.claude?.use?.("downloads").then((api) => { downloads = api; updateDownloads(); });
+
+const frame = () => new Promise((r) => setTimeout(r, 30));
+
+function showError(message) { el.error.hidden = false; el.error.textContent = message; }
+function clearError() { el.error.hidden = true; el.error.textContent = ""; }
+
+function setStage(index, failed = false) {
+  el.stages.forEach((li, i) => {
+    li.classList.toggle("done", i < index);
+    li.classList.toggle("active", i === index && !failed);
+    li.classList.toggle("failed", i === index && failed);
+  });
+}
+
+async function decodeFile(file) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Use a JPEG, PNG or WebP photo.");
+  if (file.size > CONFIG.maxBytes) throw new Error("This photo is larger than 20 MB.");
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    throw new Error("Could not read this photo.");
+  }
+  if (bitmap.width * bitmap.height > CONFIG.maxPixels) throw new Error("This photo is too large. Use one under about 40 megapixels.");
+  return bitmap;
+}
+
+function canvasFrom(bitmap, maxSide) {
+  const s = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(bitmap.width * s));
+  c.height = Math.max(1, Math.round(bitmap.height * s));
+  c.getContext("2d").drawImage(bitmap, 0, 0, c.width, c.height);
+  return c;
+}
+
+function silhouetteUrl(mask, w, h) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  const img = ctx.createImageData(w, h);
+  for (let p = 0; p < w * h; p++) {
+    const on = mask[p] === 1;
+    img.data[p * 4] = on ? 0 : 245;
+    img.data[p * 4 + 1] = on ? 113 : 245;
+    img.data[p * 4 + 2] = on ? 227 : 247;
+    img.data[p * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL("image/png");
+}
+
+function describeScale(reference, factor, size) {
+  return reference
+    ? `Width matches your ${reference} mm reference. Depth and height are estimated from one photo.`
+    : "Not calibrated. Size is a placeholder. Enter a real width for accurate dimensions.";
+}
+
+function renderChecks(report) {
+  el.checks.replaceChildren();
+  for (const c of report.checks) {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = c.name;
+    const pill = document.createElement("span");
+    pill.className = `pill ${c.status}`;
+    pill.textContent = c.status.replace("_", " ");
+    const detail = document.createElement("span");
+    detail.className = "detail";
+    detail.textContent = c.detail;
+    li.append(name, pill, detail);
+    el.checks.append(li);
+  }
+}
+
+function updateDownloads() {
+  const ready = Boolean(outputs);
+  el.dlStl.hidden = !(ready && downloads);
+  el.dl3mf.hidden = !(ready && downloads);
+  el.dlNote.hidden = !(ready && !downloads);
+  el.dlNote.textContent = "Downloads are not available in this view. Open the page in a regular browser tab to save files.";
+}
+
+async function saveFile(filename, bytes) {
+  if (!downloads) return;
+  try {
+    await downloads.save({ filename, data: new Blob([bytes], { type: "application/octet-stream" }) });
+  } catch (err) {
+    showError(`The file was not saved: ${err?.message || err}`);
+  }
+}
+
+el.file.addEventListener("change", () => {
+  const f = el.file.files[0];
+  el.drop.classList.toggle("has-file", Boolean(f));
+  el.dropTitle.textContent = f ? f.name : "Choose a photo";
+  el.dropSub.textContent = f ? `${Math.round(f.size / 1024)} KB` : "JPEG, PNG or WebP, up to 20 MB";
+});
+
+el.go.addEventListener("click", async () => {
+  clearError();
+  const file = el.file.files[0];
+  if (!file) return showError("Choose a photo first.");
+  const refText = el.width.value.trim();
+  const reference = refText ? Number(refText) : null;
+  if (reference !== null && !(reference >= 1 && reference <= 2000)) {
+    return showError("Width must be between 1 and 2000 mm.");
+  }
+
+  el.go.disabled = true;
+  el.empty.hidden = true;
+  el.result.hidden = true;
+  el.progress.hidden = false;
+  outputs = null;
+  updateDownloads();
+
+  let stage = 0;
+  try {
+    setStage(stage); await frame();
+    const bitmap = await decodeFile(file);
+    const small = canvasFrom(bitmap, CONFIG.analysisMax);
+    const pixels = small.getContext("2d").getImageData(0, 0, small.width, small.height).data;
+    const seg = segmentPixels(pixels, small.width, small.height);
+    const { occ: fullOcc, W: fullW, H: fullH } = resampleToVoxels(seg.mask, seg.w, seg.h, CONFIG.voxelMax);
+    const { occ, W, H } = cropToSolid(fullOcc, fullW, fullH);
+    const silhouette = silhouetteUrl(seg.mask, seg.w, seg.h);
+
+    stage = 1; setStage(stage); await frame();
+    const depth = Math.min(W, H);
+    const mesh = buildVoxelMesh(occ, W, H, depth);
+    const vertices = mesh.vertices;
+    const faces = mesh.faces;
+
+    stage = 2; setStage(stage); await frame();
+    const size0 = extentsOf(vertices).size;
+    let factor, scaleSource;
+    if (reference) {
+      factor = reference / size0[0];
+      scaleSource = "reference";
+    } else {
+      factor = CONFIG.defaultLongestMm / Math.max(...size0);
+      scaleSource = "normalised";
+    }
+    for (let i = 0; i < vertices.length; i++) vertices[i] *= factor;
+
+    stage = 3; setStage(stage); await frame();
+    if (signedVolume(vertices, faces) < 0) {
+      for (let t = 0; t < faces.length; t += 3) { const tmp = faces[t + 1]; faces[t + 1] = faces[t + 2]; faces[t + 2] = tmp; }
+    }
+    placeOnPlate(vertices);
+
+    stage = 4; setStage(stage); await frame();
+    const report = printChecks(vertices, faces);
+
+    stage = 5; setStage(stage); await frame();
+    outputs = {
+      name: (el.name.value.trim() || "model").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 60) || "model",
+      stl: stlBytes(vertices, faces),
+      threemf: threemfBytes(vertices, faces),
+    };
+
+    setStage(6);
+    el.progress.hidden = true;
+    el.result.hidden = false;
+    el.resultName.textContent = el.name.value.trim() || "Untitled model";
+    const [x, y, z] = report.size.map((d) => d.toFixed(1));
+    el.resultSize.textContent = `${x} × ${y} × ${z} mm · ${report.triangles.toLocaleString()} triangles`;
+    el.silhouette.src = silhouette;
+    el.scaleNote.textContent = scaleSource === "reference"
+      ? describeScale(reference, factor, report.size)
+      : describeScale(null, factor, report.size);
+    renderChecks(report);
+    updateDownloads();
+    document.dispatchEvent(new CustomEvent("model-ready", { detail: { vertices, faces } }));
+    el.result.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    setStage(stage, true);
+    showError(err?.message || "Something went wrong. Try another photo.");
+  } finally {
+    el.go.disabled = false;
+  }
+});
+
+el.dlStl.addEventListener("click", () => outputs && saveFile(`${outputs.name}.stl`, outputs.stl));
+el.dl3mf.addEventListener("click", () => outputs && saveFile(`${outputs.name}.3mf`, outputs.threemf));
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const host = document.getElementById("viewer");
+const hint = document.getElementById("viewer-hint");
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+} catch {
+  hint.textContent = "3D preview needs WebGL, which this view does not provide.";
+}
+
+if (renderer) {
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  host.replaceChildren(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 5000);
+  camera.position.set(300, 240, 300);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.target.set(0, 50, 0);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb0b4bb, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+  sun.position.set(200, 400, 300);
+  scene.add(sun);
+  scene.add(new THREE.GridHelper(220, 22, 0xc7cbd3, 0xe5e7eb));
+
+  const group = new THREE.Group();
+  group.rotation.x = -Math.PI / 2; // STL is Z-up; three.js is Y-up
+  scene.add(group);
+  let mesh = null;
+
+  const resize = () => {
+    const w = host.clientWidth, h = host.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  };
+  new ResizeObserver(resize).observe(host);
+  renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+
+  document.addEventListener("model-ready", (event) => {
+    const { vertices, faces } = event.detail;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex(new THREE.BufferAttribute(faces, 1));
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    const b = geometry.boundingBox;
+
+    if (mesh) { group.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
+    mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+      color: 0xb9bec7, roughness: 0.35, metalness: 0.1, flatShading: true,
+    }));
+    group.add(mesh);
+
+    const size = Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z, 1);
+    const cx = (b.min.x + b.max.x) / 2;
+    const cy = (b.min.z + b.max.z) / 2;
+    const cz = -(b.min.y + b.max.y) / 2;
+    controls.target.set(cx, cy, cz);
+    camera.position.set(cx + size * 1.6, cy + size * 1.2, cz + size * 1.6);
+    camera.near = size / 100;
+    camera.far = size * 100;
+    camera.updateProjectionMatrix();
+    controls.update();
+  });
+}
+</script>
+</body>
+</html>
