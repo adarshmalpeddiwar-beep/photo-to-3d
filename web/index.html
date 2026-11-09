@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photo to 3D</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Photo to 3D</h1>
+    <span class="muted">Print-ready meshes from photos</span>
+  </header>
+
+  <main class="layout">
+    <section class="column">
+      <form id="new-job-form" class="card">
+        <h2>New model</h2>
+        <label>Photos (1 to 5)
+          <input id="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple required>
+        </label>
+        <label>Name (optional)
+          <input id="name" type="text" maxlength="80" placeholder="e.g. Bracket v2">
+        </label>
+        <label>Real width of the object in mm (optional)
+          <input id="reference" type="number" min="1" max="2000" step="0.1" placeholder="Leave empty for an unscaled model">
+        </label>
+        <p class="hint">Use a plain background and even light. Measure the widest part of the object, and give the width that matches the photo. Without a width, the size is only a placeholder.</p>
+        <button id="submit" type="submit">Create model</button>
+        <p id="form-error" class="error" role="alert" hidden></p>
+      </form>
+
+      <div class="card">
+        <h2>Jobs</h2>
+        <ul id="job-list" class="job-list"></ul>
+        <p id="jobs-empty" class="muted">No jobs yet.</p>
+      </div>
+    </section>
+
+    <section class="column">
+      <div id="empty-state" class="card muted">Select a job, or create a new model to begin.</div>
+
+      <div id="detail" hidden>
+        <div class="card">
+          <div class="detail-head">
+            <h2 id="detail-title"></h2>
+            <span id="detail-status" class="pill"></span>
+          </div>
+          <p id="detail-meta" class="muted small"></p>
+          <ol id="stages" class="stages"></ol>
+          <div id="error-box" class="error" hidden></div>
+          <div id="notes" class="notes"></div>
+        </div>
+
+        <div id="result-card" class="card" hidden>
+          <div class="result-grid">
+            <div>
+              <h3>Photo outline</h3>
+              <img id="mask-img" alt="Object silhouette found in the first photo">
+            </div>
+            <div>
+              <h3>3D preview</h3>
+              <div id="viewer" class="viewer"></div>
+              <p class="muted small">Grid is the 220 × 220 mm build plate. Drag to rotate, scroll to zoom.</p>
+            </div>
+          </div>
+
+          <div class="downloads">
+            <button id="dl-stl" type="button">Download STL</button>
+            <button id="dl-3mf" type="button">Download 3MF</button>
+          </div>
+
+          <h3>Print checks</h3>
+          <table class="checks"><tbody id="checks-body"></tbody></table>
+          <p id="dims" class="muted small"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="disclaimer">
+    Dimensions are approximate unless a reference width was given. Verify key dimensions before printing or machining.
+  </footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
