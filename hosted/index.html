@@ -703,7 +703,7 @@ const el = {
 
 let downloads = null;
 let outputs = null;
-window.claude?.use?.("downloads").then((api) => { downloads = api; updateDownloads(); });
+window.claude?.use?.("downloads")?.then((api) => { downloads = api ?? null; updateDownloads(); }).catch(() => {});
 
 const frame = () => new Promise((r) => setTimeout(r, 30));
 
