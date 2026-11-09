@@ -1,5 +1,10 @@
 # Photo to 3D (Phase 1 MVP)
 
+> **Open the console:** https://claude.ai/artifact/X7qo1uz5vcx5juU7rEJZmb
+> This is the browser version. It runs the whole pipeline in your browser, with no server.
+> The link needs you to be signed in to claude.ai with the account that owns it.
+> The Python server below is for running the app yourself.
+
 Upload 1 to 5 photos of an object and get a print-ready STL and 3MF, with a silhouette
 preview, a 3D viewer and print checks.
 
