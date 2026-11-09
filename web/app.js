@@ -267,6 +267,8 @@ function ensureViewer() {
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 5000);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 2.0;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9999aa, 1.2));
   const sun = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -289,6 +291,13 @@ function ensureViewer() {
   });
 
   view.viewer = { renderer, scene, camera, controls, mesh: null };
+  const turn = document.getElementById("turn-toggle");
+  if (turn) {
+    turn.addEventListener("click", () => {
+      controls.autoRotate = !controls.autoRotate;
+      turn.textContent = controls.autoRotate ? "Pause turn" : "Start turn";
+    });
+  }
   resize();
   return view.viewer;
 }

@@ -286,6 +286,7 @@
         <p class="scale-note" id="scale-note"></p>
 
         <div class="downloads">
+          <button id="turn-toggle" class="btn secondary" type="button">Pause turn</button>
           <button id="dl-stl" class="btn" type="button" hidden>Download STL</button>
           <button id="dl-3mf" class="btn secondary" type="button" hidden>Download 3MF</button>
         </div>
@@ -912,6 +913,8 @@ if (renderer) {
   camera.position.set(300, 240, 300);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 2.0;
   controls.target.set(0, 50, 0);
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0xb0b4bb, 1.6));
@@ -919,6 +922,12 @@ if (renderer) {
   sun.position.set(200, 400, 300);
   scene.add(sun);
   scene.add(new THREE.GridHelper(220, 22, 0xc7cbd3, 0xe5e7eb));
+
+  const turn = document.getElementById("turn-toggle");
+  turn?.addEventListener("click", () => {
+    controls.autoRotate = !controls.autoRotate;
+    turn.textContent = controls.autoRotate ? "Pause turn" : "Start turn";
+  });
 
   const group = new THREE.Group();
   group.rotation.x = -Math.PI / 2; // STL is Z-up; three.js is Y-up
